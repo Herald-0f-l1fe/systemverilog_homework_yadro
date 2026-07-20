@@ -85,6 +85,74 @@ module sort_three_floats (
     //
     // The FLEN parameter is defined in the "import/preprocessed/cvw/config-shared.vh" file
     // and usually equal to the bit width of the double-precision floating-point number, FP64, 64 bits.
+    logic [0:2][FLEN - 1 : 0] stage1;
+    logic [0:2][FLEN - 1 : 0] stage2;
+    logic err0, err1, err2;
+    assign err = err0 | err1 | err2;
 
+
+    logic u0_le_u1;
+    f_less_or_equal i_cmp0 (
+        .a   ( unsorted[0] ),
+        .b   ( unsorted[1] ),
+        .res ( u0_le_u1    ),
+        .err ( err0        )
+    );
+
+    always_comb begin
+        if (u0_le_u1) begin
+            stage1[0] = unsorted[0];
+            stage1[1] = unsorted[1];
+        end else begin
+            stage1[0] = unsorted[1];
+            stage1[1] = unsorted[0];
+        end
+        stage1[2] = unsorted[2]; // Элемент [2] проходит насквозь
+    end
+
+    logic u1_le_u2;
+    f_less_or_equal i_cmp1 (
+        .a   ( stage1[1] ),
+        .b   ( stage1[2] ),
+        .res ( u1_le_u2    ),
+        .err ( err1        )
+    );
+
+    always_comb begin
+        if (u1_le_u2) 
+        begin
+            stage2[1] = stage1[1];
+            stage2[2] = stage1[2];
+        end 
+        else 
+        begin
+            stage2[1] = stage1[2];
+            stage2[2] = stage1[1];
+        end
+        stage2[0] = stage1[0]; // Элемент [0] проходит насквозь
+    end
+
+    logic u0_le_u1_2;
+    f_less_or_equal i_cmp2 (
+        .a   ( stage2[0]  ),
+        .b   ( stage2[1]  ),
+        .res ( u0_le_u1_2 ),
+        .err (    err2    )
+    );
+
+
+    always_comb begin
+        if (u0_le_u1_2) 
+        begin
+            sorted[1] = stage2[1];
+            sorted[0] = stage2[0];
+        end 
+        else 
+        begin
+            sorted[0] = stage2[1];
+            sorted[1] = stage2[0];
+        end
+        sorted[2] = stage2[2]; // Элемент [2] проходит насквозь
+    end
 
 endmodule

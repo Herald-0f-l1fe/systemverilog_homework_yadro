@@ -18,6 +18,20 @@ module halve_tokens
     // Example:
     // a -> 110_011_101_000_1111
     // b -> 010_001_001_000_0101
+    logic counter;
+    always_ff @( posedge clk ) 
+    begin
+        if (rst)
+        begin
+            counter <= 0;
+        end 
+        else
+        begin
+            if (a)
+            counter = counter + 1;    
+        end
+    end
+    assign b = (a && counter) ? 1 : 0;
 
 
 endmodule

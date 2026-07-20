@@ -37,6 +37,14 @@ module signed_add_with_overflow
   // 4-bit maximum or minimum signed number.
   //
   // Otherwise the 'overflow' should be set to 0.
-
+  wire [3:0] final_sum; 
+  add adder
+  (
+    .a    (    a    ), 
+    .b    (    b    ),
+    .sum  (final_sum)
+  );
+  assign sum = final_sum;
+  assign overflow = (a[3] == b[3]) && (sum[3] != a[3]);
 
 endmodule

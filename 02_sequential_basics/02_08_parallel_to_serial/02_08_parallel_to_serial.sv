@@ -1,12 +1,11 @@
 //----------------------------------------------------------------------------
 // Task
 //----------------------------------------------------------------------------
-
 module parallel_to_serial
 # (
     parameter width = 8
 )
-(
+    (
     input                      clk,
     input                      rst,
 
@@ -28,6 +27,44 @@ module parallel_to_serial
     //
     // Note:
     // Check the waveform diagram in the README for better understanding.
+    logic [$clog2(width):0] counter;
+    logic [width - 1 :   0] shift_reg;
 
+
+    assign busy = (counter < width & counter > 0);
+    always_ff @(posedge clk)
+    begin
+        if (rst)
+        begin
+            serial_valid <= '0;
+            serial_data  <= '0;
+            counter      <= '0;
+            shift_reg    <= '0;
+        end
+        else 
+        begin
+            if (parallel_valid && (!busy || counter == width))
+            begin
+                shift_reg    <= {1'b0, parallel_data[width - 1 : 1]};
+                serial_data  <= parallel_data[0];
+                serial_valid <= '1;
+                counter      <= 1;
+            end
+            else if (counter > 0 && counter < width)
+            begin
+                serial_valid <= '1;
+                serial_data  <= shift_reg[0];
+                counter      <= counter + 1; 
+                shift_reg    <= shift_reg >> 1;
+            end
+            else 
+            begin
+                serial_valid <= 1'b0; 
+                serial_data  <= 1'b0; 
+                counter      <= 0;    
+            end
+
+        end
+    end
 
 endmodule
