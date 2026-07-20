@@ -22,7 +22,27 @@ module conv_last_to_first
     // Implement a module that converts 'last' input status signal
     // to the 'first' output status signal.
     //
-    // See README for full description of the task with timing diagram.
+    // See README for full description of the task with timing diagram
+    logic was_last;
+    always_ff @(posedge clock) 
+    begin
+        if (reset)
+        begin
+            was_last <= 1;
+        end
+        else if (up_valid) 
+        begin
+            if (up_last)
+                was_last <= 1;    
+            else
+                was_last <= 0;
+        end
+    end
+
+    assign down_valid = up_valid;
+    assign down_data  =  up_data;
+    assign down_first = (was_last && up_valid); 
+
 
 
 endmodule
