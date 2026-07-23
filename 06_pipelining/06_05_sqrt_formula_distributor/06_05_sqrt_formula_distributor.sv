@@ -44,4 +44,110 @@ module sqrt_formula_distributor
     // or "formula_2_top" modules to achieve desired performance.
 
 
+    localparam N_BLOCKS = 50;
+    localparam IDX_W    = $clog2 (N_BLOCKS);
+
+    //------------------------------------------------------------------------
+    // Round-robin pointer
+    //------------------------------------------------------------------------
+    logic [IDX_W - 1:0] ptr;
+
+    always_ff @ (posedge clk or posedge rst)
+    begin
+        if (rst)
+            ptr <= '0;
+        else if (arg_vld)
+            ptr <= (ptr == IDX_W' (N_BLOCKS - 1)) ? '0
+                                                  : ptr + 1'b1;
+    end
+
+    //------------------------------------------------------------------------
+    // Per-block output wires
+    //------------------------------------------------------------------------
+    wire [N_BLOCKS - 1:0]      blk_vld;
+    wire [N_BLOCKS * 32 - 1:0] blk_res;
+
+    //------------------------------------------------------------------------
+    // Instantiate N_BLOCKS computational blocks
+    //------------------------------------------------------------------------
+    genvar i;
+
+    generate
+        for (i = 0; i < N_BLOCKS; i = i + 1)
+        begin : gen_blk
+
+            wire sel = arg_vld & (ptr == IDX_W' (i));
+
+            wire        b_vld;
+            wire [31:0] b_res;
+
+            if (formula == 1 && impl == 1)
+            begin : f1_i1
+                formula_1_impl_1_top i_top
+                (
+                    .clk     ( clk   ),
+                    .rst     ( rst   ),
+                    .arg_vld ( sel   ),
+                    .a       ( a     ),
+                    .b       ( b     ),
+                    .c       ( c     ),
+                    .res_vld ( b_vld ),
+                    .res     ( b_res )
+                );
+            end
+            else if (formula == 1 && impl == 2)
+            begin : f1_i2
+                formula_1_impl_2_top i_top
+                (
+                    .clk     ( clk   ),
+                    .rst     ( rst   ),
+                    .arg_vld ( sel   ),
+                    .a       ( a     ),
+                    .b       ( b     ),
+                    .c       ( c     ),
+                    .res_vld ( b_vld ),
+                    .res     ( b_res )
+                );
+            end
+            else
+            begin : f2
+                formula_2_top i_top
+                (
+                    .clk     ( clk   ),
+                    .rst     ( rst   ),
+                    .arg_vld ( sel   ),
+                    .a       ( a     ),
+                    .b       ( b     ),
+                    .c       ( c     ),
+                    .res_vld ( b_vld ),
+                    .res     ( b_res )
+                );
+            end
+
+            assign blk_vld [i]            = b_vld;
+            assign blk_res [i * 32 +: 32] = b_res;
+
+        end
+    endgenerate
+
+    //------------------------------------------------------------------------
+    // Output mux — через промежуточные logic-переменные
+    //------------------------------------------------------------------------
+    logic        res_vld_comb;
+    logic [31:0] res_comb;
+
+    assign res_vld_comb = | blk_vld;
+
+    always_comb
+    begin
+        res_comb = '0;
+
+        for (int j = 0; j < N_BLOCKS; j ++)
+            if (blk_vld [j])
+                res_comb = blk_res [j * 32 +: 32];
+    end
+
+    assign res_vld = res_vld_comb;
+    assign res     = res_comb;
+
 endmodule

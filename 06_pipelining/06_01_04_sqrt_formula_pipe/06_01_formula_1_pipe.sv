@@ -41,6 +41,41 @@ module formula_1_pipe
     // in the article by Yuri Panchul published in
     // FPGA-Systems Magazine :: FSM :: Issue ALFA (state_0)
     // You can download this issue from https://fpga-systems.org/fsm#state_0
+    wire a_vld;
+    wire [31:0] a_res, b_res, c_res;
+
+    isqrt a_sqrt
+    (   
+        .clk   (  clk  ),
+        .rst   (  rst  ),
+        .x_vld (arg_vld),
+        .x     (   a   ),
+        .y_vld ( a_vld ),
+        .y     ( a_res )
+    );
+
+    isqrt b_sqrt
+    (
+        .clk   (  clk  ),
+        .rst   (  rst  ),
+        .x_vld (arg_vld),
+        .x     (   b   ),
+        .y_vld (       ),
+        .y     ( b_res )
+    );
+
+    isqrt c_sqrt
+    (
+        .clk   (  clk  ),
+        .rst   (  rst  ),
+        .x_vld (arg_vld),
+        .x     (   c   ),
+        .y_vld (       ),
+        .y     ( c_res )
+    );
+
+    assign res_vld = a_vld;
+    assign res = 32'(a_res) + 32'(b_res) + 32'(c_res);
 
 
 endmodule
