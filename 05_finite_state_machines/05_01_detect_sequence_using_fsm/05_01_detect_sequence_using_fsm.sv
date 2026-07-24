@@ -74,6 +74,53 @@ module detect_6_bit_sequence_using_fsm
   // Implement a module that detects the "110011" input sequence
   //
   // Hint: See Lecture 3 for details
+  
 
+  enum logic[5:0]
+  {
+    S0 = 6'b000000,
+    S1 = 6'b000001,
+    S2 = 6'b000011,
+    S3 = 6'b000110,
+    S4 = 6'b001100,
+    S5 = 6'b011001,
+    S6 = 6'b110011
+  }
+  state, new_state;
+  
 
+  always_comb 
+  begin
+  new_state = state;
+    case (state)
+        S0:   if (  a) new_state = S1;
+
+        S1:   if (  a) new_state = S2;
+              else     new_state = S0;
+
+        S2:   if ( ~a) new_state = S3;
+              else     new_state = S2;
+
+        S3:   if (~ a) new_state = S4;
+              else     new_state = S2;
+        
+        S4:   if (  a) new_state = S5;
+              else     new_state = S0;
+
+        S5:   if (  a) new_state = S6;
+              else     new_state = S0;
+
+        S6:   if ( ~a) new_state = S3;
+              else     new_state = S2;
+
+    endcase
+  end
+
+  assign detected = (state == S6);
+
+  always_ff @ (posedge clk)
+    if (rst)
+      state <= S0;
+    else
+      state <= new_state;
 endmodule

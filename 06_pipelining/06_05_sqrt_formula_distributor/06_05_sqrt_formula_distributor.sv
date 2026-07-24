@@ -43,111 +43,152 @@ module sqrt_formula_distributor
     // Instantiate sufficient number of "formula_1_impl_1_top", "formula_1_impl_2_top",
     // or "formula_2_top" modules to achieve desired performance.
 
+    localparam N =        50;
+    localparam W = $clog2(N);
 
-    localparam N_BLOCKS = 50;
-    localparam IDX_W    = $clog2 (N_BLOCKS);
+    logic [N-1:0]    mod_res_vld, in_vld;
+    logic [N-1:0] [31:0] mod_res, a_r, b_r, c_r;
+    
+    logic [W-1:0] index;
 
-    //------------------------------------------------------------------------
-    // Round-robin pointer
-    //------------------------------------------------------------------------
-    logic [IDX_W - 1:0] ptr;
+    counter_index i_counter
+    (
+        .clk    (  clk  ),
+        .rst    (  rst  ),
+        .en     (arg_vld),
+        .index  ( index )
+    );
 
-    always_ff @ (posedge clk or posedge rst)
-    begin
-        if (rst)
-            ptr <= '0;
-        else if (arg_vld)
-            ptr <= (ptr == IDX_W' (N_BLOCKS - 1)) ? '0
-                                                  : ptr + 1'b1;
+    always_ff @( posedge clk ) begin
+        if (rst) begin
+            a_r <= '0;
+            b_r <= '0;
+            c_r <= '0;
+        end
+        else begin
+            for (int i = 0; i < N; i ++)  begin
+                if ((index == W'(i)) && arg_vld) begin
+                    a_r[i] <= a;
+                    b_r[i] <= b;
+                    c_r[i] <= c;
+                end
+            end 
+        end
     end
 
-    //------------------------------------------------------------------------
-    // Per-block output wires
-    //------------------------------------------------------------------------
-    wire [N_BLOCKS - 1:0]      blk_vld;
-    wire [N_BLOCKS * 32 - 1:0] blk_res;
+    always_ff @( posedge clk ) begin
+        if (rst) begin
+            in_vld <= '0;
+        end
+        else begin
+            for (int i = 0; i < N; i ++) begin
+                if ((index == W'(i))  && arg_vld)
+                    in_vld[i] <= arg_vld;
+                else begin
+                    in_vld[i] <= '0;
+                end
+            end 
+        end
+    end               
 
-    //------------------------------------------------------------------------
-    // Instantiate N_BLOCKS computational blocks
-    //------------------------------------------------------------------------
     genvar i;
-
     generate
-        for (i = 0; i < N_BLOCKS; i = i + 1)
-        begin : gen_blk
-
-            wire sel = arg_vld & (ptr == IDX_W' (i));
-
-            wire        b_vld;
-            wire [31:0] b_res;
-
+        for (i = 0; i < N; i ++)
+        begin : gen_block
+            // wire sel = arg_vld & (index == W'(i));
             if (formula == 1 && impl == 1)
-            begin : f1_i1
-                formula_1_impl_1_top i_top
-                (
-                    .clk     ( clk   ),
-                    .rst     ( rst   ),
-                    .arg_vld ( sel   ),
-                    .a       ( a     ),
-                    .b       ( b     ),
-                    .c       ( c     ),
-                    .res_vld ( b_vld ),
-                    .res     ( b_res )
+                formula_1_impl_1_top u_blk (
+                    .clk     (clk),
+                    .rst     (rst),
+                    .arg_vld (in_vld[i]),
+                    .a       (a_r[i]),
+                    .b       (b_r[i]),
+                    .c       (c_r[i]),
+                    .res_vld (mod_res_vld[i]),
+                    .res     (mod_res[i])
                 );
-            end
             else if (formula == 1 && impl == 2)
-            begin : f1_i2
-                formula_1_impl_2_top i_top
-                (
-                    .clk     ( clk   ),
-                    .rst     ( rst   ),
-                    .arg_vld ( sel   ),
-                    .a       ( a     ),
-                    .b       ( b     ),
-                    .c       ( c     ),
-                    .res_vld ( b_vld ),
-                    .res     ( b_res )
+                formula_1_impl_2_top u_blk (
+                    .clk     (clk),
+                    .rst     (rst),
+                    .arg_vld (in_vld[i]),
+                    .a       (a_r[i]),
+                    .b       (b_r[i]),
+                    .c       (c_r[i]),
+                    .res_vld (mod_res_vld[i]),
+                    .res     (mod_res[i])
                 );
-            end
-            else
-            begin : f2
-                formula_2_top i_top
-                (
-                    .clk     ( clk   ),
-                    .rst     ( rst   ),
-                    .arg_vld ( sel   ),
-                    .a       ( a     ),
-                    .b       ( b     ),
-                    .c       ( c     ),
-                    .res_vld ( b_vld ),
-                    .res     ( b_res )
+            else // formula == 2
+                formula_2_top u_blk (
+                    .clk     (clk),
+                    .rst     (rst),
+                    .arg_vld (in_vld[i]),
+                    .a       (a_r[i]),
+                    .b       (b_r[i]),
+                    .c       (c_r[i]),
+                    .res_vld (mod_res_vld[i]),
+                    .res     (mod_res[i])
                 );
-            end
-
-            assign blk_vld [i]            = b_vld;
-            assign blk_res [i * 32 +: 32] = b_res;
-
         end
     endgenerate
 
-    //------------------------------------------------------------------------
-    // Output mux — через промежуточные logic-переменные
-    //------------------------------------------------------------------------
-    logic        res_vld_comb;
-    logic [31:0] res_comb;
+    mux_n_to_1 i_mux
+    (
+        .mod_res_vld (mod_res_vld),
+        .mod_res     (  mod_res  ),
+        .out_res     (     res   )
+    );
 
-    assign res_vld_comb = | blk_vld;
+    assign res_vld = |mod_res_vld;
+endmodule
 
-    always_comb
-    begin
-        res_comb = '0;
 
-        for (int j = 0; j < N_BLOCKS; j ++)
-            if (blk_vld [j])
-                res_comb = blk_res [j * 32 +: 32];
+
+module mux_n_to_1
+# (
+    parameter N = 50
+)
+(
+    input        [N-1:0]        mod_res_vld, 
+    input        [N-1:0][31:0]  mod_res,     
+    output logic [31:0]         out_res      
+);
+
+    always_comb begin
+        out_res = 32'd0;
+
+        for (int i = 0; i < N; i ++) 
+        begin
+            if (mod_res_vld[i])
+                out_res = mod_res[i];
+        end
     end
 
-    assign res_vld = res_vld_comb;
-    assign res     = res_comb;
+endmodule
+
+
+module counter_index
+# (
+    parameter N = 50 // Количество обслуживаемых модулей (Instances)
+)
+(
+    input                        clk,
+    input                        rst,
+    input                        en,  
+    output logic [$clog2(N)-1:0] index
+);
+
+    always_ff @ (posedge clk) 
+    begin
+        if (rst) 
+            index <= '0;
+        else if (en) 
+        begin
+            if (index == N - 1)
+                index <= '0;
+            else
+                index <= index + 1'b1;
+        end
+    end
 
 endmodule
