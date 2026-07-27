@@ -96,5 +96,36 @@ module circular_buffer_with_valid
 
     // Insert here your solution from previous task.
 
+        localparam pointer_width = $clog2 (depth);
+    localparam [pointer_width - 1:0] max_ptr = pointer_width' (depth - 1);
+
+    
+    logic [pointer_width - 1:0] ptr;
+
+    always_ff @ (posedge clk or posedge rst)
+        if (rst)
+            ptr <= '0;
+        else
+            ptr <= ( ptr == max_ptr ) ? '0 : ptr + 1'b1;
+
+    
+    logic [width - 1:0] data [0: depth - 1];
+
+    always_ff @ (posedge clk)
+        if (in_valid)
+            data [ptr] <= in_data;
+
+
+    logic valid [0: depth - 1];
+
+    always_ff @ (posedge clk or posedge rst)
+        if (rst)
+            for (int i = 0; i < depth; i++)
+                valid[i] <= 1'b0;
+        else
+            valid[ptr] <= in_valid; 
+
+    assign out_data  = data [ptr];
+    assign out_valid = valid [ptr];
 
 endmodule
